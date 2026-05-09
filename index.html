@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MA Master Crime List — Offense Seriousness Lookup</title>
+<style>
+  /* ── Type system: editorial legal reference ─────────────── */
+  :root {
+    --paper:        #f6f1e8;
+    --paper-deep:   #ede5d3;
+    --paper-line:   #d9cfb6;
+    --ink:          #1a1612;
+    --ink-soft:     #4a3f2f;
+    --ink-mute:     #75695a;
+    --ink-faint:    #b6a98e;
+    --accent:       #8a1818;       /* deep oxblood */
+    --accent-soft:  #b25656;
+    --warn:         #a05a00;       /* burnt amber for tentative */
+    --warn-bg:      #f5e6c8;
+    --gov:          #14365b;       /* commonwealth navy */
+    --rule:         #2a2520;
+    /* Sentencing-zone palette — keyed to Figure 3 */
+    --zone-incar:   #e8b8b8;       /* red — incarceration zone */
+    --zone-incar-hi:#d68a8a;
+    --zone-disc:    #f0dfa3;       /* yellow — discretionary */
+    --zone-disc-hi: #d8c478;
+    --zone-int:     #c0d6b0;       /* green — intermediate sanction only */
+    --zone-int-hi:  #94b67c;
+    --zone-nosup:   #b8c9dc;       /* blue — no supervision */
+    --zone-nosup-hi:#7d9bbd;
+    --serif:        ui-serif, "Iowan Old Style", "Charter", Georgia, "Times New Roman", serif;
+    --mono:         ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans:         ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--serif); }
+  body {
+    min-height: 100vh;
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(255,255,255,0.4) 0%, transparent 40%),
+      repeating-linear-gradient(0deg, transparent 0, transparent 28px, rgba(180,160,120,0.04) 28px, rgba(180,160,120,0.04) 29px);
+    line-height: 1.5;
+    font-size: 16px;
+  }
+
+  .container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+  }
+
+  /* ── Masthead ──────────────────────────────────────────── */
+  .masthead {
+    border-top: 4px double var(--rule);
+    border-bottom: 1px solid var(--rule);
+    padding: 20px 0 16px;
+    margin-bottom: 18px;
+  }
+  .masthead .commonwealth {
+    font-family: var(--sans);
+    font-size: 11px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--gov);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .masthead h1 {
+    font-family: var(--serif);
+    font-size: clamp(34px, 5vw, 56px);
+    font-weight: 700;
+    line-height: 1.0;
+    letter-spacing: -0.015em;
+    color: var(--ink);
+  }
+  .masthead h1 em {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--accent);
+  }
+  .masthead .sub {
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--ink-mute);
+    margin-top: 8px;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── Caveat banner ─────────────────────────────────────── */
+  .caveat {
+    background: var(--warn-bg);
+    border-left: 3px solid var(--warn);
+    padding: 12px 16px;
+    margin: 18px 0 28px;
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--ink-soft);
+    line-height: 1.5;
+  }
+  .caveat strong { color: var(--warn); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; font-size: 11px; display: block; margin-bottom: 4px; }
+  .caveat .lede { color: var(--ink); font-weight: 500; }
+
+  /* ── Sentencing Grid panel (full reference) ────────────── */
+  .grid-panel {
+    border: 1px solid var(--paper-line);
+    background: rgba(255,255,255,0.4);
+    margin-bottom: 28px;
+    font-family: var(--sans);
+  }
+  .grid-panel summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--ink-soft);
+    font-size: 13px;
+    user-select: none;
+  }
+  .grid-panel summary::-webkit-details-marker { display: none; }
+  .grid-panel summary::after {
+    content: '▾';
+    margin-left: auto;
+    color: var(--ink-mute);
+    transition: transform 0.2s;
+  }
+  .grid-panel[open] summary::after { transform: rotate(180deg); }
+  .grid-panel summary strong {
+    font-family: var(--serif);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: 0.01em;
+  }
+  .grid-panel summary .ref {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-mute);
+  }
+  .grid-panel .body {
+    padding: 8px 16px 20px;
+    border-top: 1px solid var(--paper-line);
+  }
+  /* the grid table itself */
+  .sg-grid {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 11px;
+    margin: 12px 0 8px;
+  }
+  .sg-grid th, .sg-grid td {
+    border: 1px solid #ffffff80;
+    padding: 0;
+    text-align: center;
+    vertical-align: middle;
+  }
+  .sg-grid thead th {
+    background: transparent;
+    border: none;
+    font-family: var(--sans);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-mute);
+    font-weight: 600;
+    padding: 4px 6px 6px;
+    border-bottom: 1px solid var(--paper-line);
+  }
+  .sg-grid thead th .hist-letter {
+    font-family: var(--serif);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+    display: block;
+    margin-bottom: 2px;
+  }
+  .sg-grid tbody th.row-header {
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--paper-line);
+    font-family: var(--serif);
+    font-weight: 700;
+    color: var(--ink);
+    font-size: 18px;
+    width: 50px;
+    padding: 6px 8px;
+    text-align: right;
+  }
+  .sg-grid tbody th.row-header .ex {
+    display: block;
+    font-family: var(--sans);
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--ink-mute);
+    font-style: italic;
+    margin-top: 2px;
+    text-align: right;
+  }
+  .sg-grid td.cell {
+    padding: 12px 4px;
+    height: 44px;
+    color: var(--ink);
+    font-weight: 500;
+    cursor: pointer;
+    transition: filter 0.15s;
+    position: relative;
+  }
+  .sg-grid td.cell:hover { filter: brightness(0.92); }
+  .sg-grid td.cell.zone-I { background: var(--zone-incar); }
+  .sg-grid td.cell.zone-D { background: var(--zone-disc); }
+  .sg-grid td.cell.zone-M { background: var(--zone-int); }
+  .sg-grid td.cell.zone-N { background: var(--zone-nosup); color: var(--gov); font-weight: 700; letter-spacing: 0.1em; }
+  .sg-grid td.cell.empty { background: var(--zone-int); color: transparent; cursor: default; }
+  .sg-grid td.cell.empty:hover { filter: none; }
+  .sg-grid td.prob {
+    background: var(--paper-deep);
+    font-family: var(--sans);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-mute);
+    width: 60px;
+    border-left: 1px solid var(--paper-line);
+    border-color: var(--paper-line);
+  }
+  .sg-grid td.prob.empty { color: transparent; }
+
+  .zone-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 22px;
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--ink-soft);
+    line-height: 1.4;
+    margin-top: 14px;
+  }
+  .zone-legend .item { display: flex; align-items: flex-start; gap: 8px; }
+  .zone-legend .swatch {
+    width: 14px;
+    height: 14px;
+    border: 1px solid rgba(0,0,0,0.1);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .zone-legend .swatch.zone-I { background: var(--zone-incar); }
+  .zone-legend .swatch.zone-D { background: var(--zone-disc); }
+  .zone-legend .swatch.zone-M { background: var(--zone-int); }
+  .zone-legend .swatch.zone-N { background: var(--zone-nosup); }
+  .zone-legend .name {
+    font-weight: 600;
+    color: var(--ink);
+    display: block;
+  }
+  .zone-legend .desc { color: var(--ink-mute); }
+
+  .grid-rule {
+    margin-top: 14px;
+    padding: 10px 14px;
+    background: var(--paper-deep);
+    border-left: 2px solid var(--gov);
+    font-family: var(--serif);
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 1.5;
+  }
+  .grid-rule strong {
+    font-family: var(--sans);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+    color: var(--gov);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  /* ── Row context inside expanded results ───────────────── */
+  .row-context {
+    margin-top: 14px;
+    border-top: 1px dashed var(--paper-line);
+    padding-top: 14px;
+  }
+  .row-context-label {
+    font-family: var(--sans);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-mute);
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .row-strip {
+    display: grid;
+    grid-template-columns: 60px repeat(5, 1fr) 70px;
+    gap: 1px;
+    border: 1px solid var(--paper-line);
+    background: var(--paper-line);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .row-strip .head, .row-strip .level-cell, .row-strip .cell, .row-strip .prob-cell {
+    background: var(--paper);
+    padding: 8px 6px;
+    text-align: center;
+  }
+  .row-strip .head {
+    font-family: var(--sans);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-mute);
+    background: var(--paper-deep);
+    padding: 4px 6px;
+  }
+  .row-strip .head .letter {
+    display: block;
+    font-family: var(--serif);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: 0;
+  }
+  .row-strip .level-cell {
+    background: var(--ink);
+    color: var(--paper);
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 700;
+    grid-row: span 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    line-height: 1;
+  }
+  .row-strip .level-cell .lvl-tag {
+    font-family: var(--sans);
+    font-size: 8px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--paper);
+    opacity: 0.7;
+    margin-top: 4px;
+  }
+  .row-strip .cell.zone-I { background: var(--zone-incar); }
+  .row-strip .cell.zone-D { background: var(--zone-disc); }
+  .row-strip .cell.zone-M { background: var(--zone-int); }
+  .row-strip .cell.zone-N { background: var(--zone-nosup); color: var(--gov); font-weight: 700; }
+  .row-strip .cell.empty { background: var(--zone-int); color: var(--ink-mute); font-style: italic; font-size: 10px; }
+  .row-strip .prob-cell {
+    background: var(--paper-deep);
+    font-family: var(--sans);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-mute);
+    grid-row: span 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.2;
+  }
+  .row-strip .prob-cell strong {
+    color: var(--ink);
+    font-weight: 700;
+    display: block;
+    font-size: 11px;
+  }
+  .row-context-note {
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--ink-mute);
+    margin-top: 8px;
+    line-height: 1.5;
+    font-style: italic;
+  }
+  .row-context-note strong { color: var(--ink-soft); font-style: normal; font-weight: 600; }
+  .contingent-msg {
+    margin-top: 14px;
+    padding: 10px 14px;
+    background: var(--paper-deep);
+    border-left: 2px solid var(--ink-mute);
+    font-family: var(--sans);
+    font-size: 12px;
+    color: var(--ink-soft);
+    line-height: 1.5;
+  }
+
+  /* ── Search ────────────────────────────────────────────── */
+  .search-wrap {
+    position: relative;
+    margin-bottom: 16px;
+  }
+  .search-input {
+    width: 100%;
+    font-family: var(--serif);
+    font-size: 22px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--ink);
+    padding: 12px 0 12px 36px;
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-input:focus { border-bottom-color: var(--accent); }
+  .search-input::placeholder { color: var(--ink-faint); font-style: italic; }
+  .search-icon {
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 20px;
+    color: var(--ink-mute);
+    pointer-events: none;
+  }
+  .search-clear {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--ink-mute);
+    cursor: pointer;
+    font-size: 18px;
+    padding: 4px 8px;
+    display: none;
+  }
+  .search-clear:hover { color: var(--accent); }
+  .search-clear.show { display: block; }
+
+  /* ── Filters ───────────────────────────────────────────── */
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    align-items: center;
+    margin-bottom: 18px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--paper-line);
+    font-family: var(--sans);
+    font-size: 13px;
+  }
+  .filter-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .filter-label {
+    color: var(--ink-mute);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-size: 11px;
+    margin-right: 4px;
+  }
+  .chip {
+    cursor: pointer;
+    padding: 4px 10px;
+    border: 1px solid var(--paper-line);
+    background: transparent;
+    color: var(--ink-soft);
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 2px;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .chip:hover { border-color: var(--ink-mute); color: var(--ink); }
+  .chip.active {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+  .chip.level-chip { font-family: var(--serif); font-weight: 700; min-width: 30px; text-align: center; }
+  .chip.level-chip.active { background: var(--accent); border-color: var(--accent); }
+
+  .toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: var(--ink-soft);
+  }
+  .toggle input { cursor: pointer; }
+
+  .clear-btn {
+    background: transparent;
+    border: 1px solid var(--paper-line);
+    padding: 4px 12px;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 12px;
+    color: var(--ink-mute);
+    border-radius: 2px;
+    margin-left: auto;
+  }
+  .clear-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ── Status row ────────────────────────────────────────── */
+  .status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 16px;
+    font-family: var(--sans);
+    font-size: 12px;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 8px;
+  }
+  .status-row .count strong { color: var(--accent); font-size: 14px; font-weight: 700; }
+  .histogram {
+    display: flex;
+    gap: 1px;
+    align-items: end;
+    height: 22px;
+  }
+  .histo-bar {
+    width: 14px;
+    background: var(--ink-faint);
+    position: relative;
+    transition: background 0.2s;
+  }
+  .histo-bar:hover { background: var(--accent); }
+  .histo-bar .label {
+    position: absolute;
+    top: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: var(--ink-mute);
+    font-family: var(--sans);
+  }
+
+  /* ── Results list ──────────────────────────────────────── */
+  .results { list-style: none; }
+  .result {
+    display: grid;
+    grid-template-columns: 56px 1fr auto;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--paper-line);
+    align-items: start;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .result:hover { background: rgba(255, 255, 255, 0.5); }
+
+  .level-block {
+    text-align: center;
+    padding-top: 2px;
+  }
+  .level-num {
+    font-family: var(--serif);
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .level-num.tentative { color: var(--warn); font-style: italic; }
+  .level-num.contingent { color: var(--ink-mute); font-size: 14px; line-height: 28px; }
+  .level-num.bare { color: var(--ink-faint); font-size: 14px; line-height: 28px; }
+  .level-tag {
+    font-family: var(--sans);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--warn);
+    font-weight: 600;
+    margin-top: 2px;
+  }
+
+  .body-block .title {
+    font-family: var(--serif);
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1.3;
+    margin-bottom: 4px;
+  }
+  .body-block .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-family: var(--sans);
+    font-size: 12px;
+    color: var(--ink-mute);
+    align-items: center;
+  }
+  .citation {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-soft);
+    background: var(--paper-deep);
+    padding: 1px 6px;
+    border-radius: 2px;
+  }
+  .penalty-tag {
+    font-family: var(--sans);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border: 1px solid currentColor;
+    border-radius: 2px;
+  }
+  .penalty-felony { color: var(--accent); }
+  .penalty-misd { color: var(--gov); }
+  .note-tag {
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--warn);
+    font-weight: 600;
+  }
+
+  .right-block {
+    text-align: right;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-mute);
+    line-height: 1.5;
+    padding-top: 4px;
+  }
+  .right-block .sentence-line { white-space: nowrap; }
+  .right-block .sentence-line strong { color: var(--ink); font-weight: 600; }
+
+  /* ── Detail expansion ──────────────────────────────────── */
+  .result.expanded { background: rgba(255, 255, 255, 0.6); }
+  .detail {
+    grid-column: 1 / -1;
+    padding: 14px 0 4px 72px;
+    border-top: 1px dashed var(--paper-line);
+    margin-top: 14px;
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--ink-soft);
+    line-height: 1.6;
+  }
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px 24px;
+    margin-bottom: 12px;
+  }
+  .detail-grid dt {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-bottom: 2px;
+    font-weight: 600;
+  }
+  .detail-grid dd { font-family: var(--mono); font-size: 13px; color: var(--ink); }
+  .detail-grid dd.empty { color: var(--ink-faint); font-style: italic; font-family: var(--sans); }
+  .note-explainer {
+    background: var(--paper-deep);
+    padding: 10px 14px;
+    border-left: 2px solid var(--warn);
+    font-size: 12px;
+    margin-top: 6px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 80px 0;
+    color: var(--ink-mute);
+    font-family: var(--serif);
+  }
+  .empty-state .big { font-size: 28px; font-style: italic; margin-bottom: 8px; color: var(--ink-soft); }
+  .empty-state .hint { font-family: var(--sans); font-size: 13px; }
+  .empty-state .hint kbd {
+    font-family: var(--mono);
+    background: var(--paper-deep);
+    padding: 1px 6px;
+    border-radius: 2px;
+    margin: 0 2px;
+    font-size: 11px;
+  }
+
+  /* ── Footnotes ─────────────────────────────────────────── */
+  .footnotes {
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 4px double var(--rule);
+    font-family: var(--sans);
+    font-size: 12px;
+    color: var(--ink-mute);
+    line-height: 1.6;
+  }
+  .footnotes h3 {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 12px;
+    letter-spacing: 0.02em;
+  }
+  .notes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 10px 24px;
+    margin-bottom: 24px;
+  }
+  .notes-grid dt {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 700;
+    margin-top: 4px;
+  }
+  .notes-grid dd { color: var(--ink-soft); margin-bottom: 6px; }
+  .colophon {
+    font-style: italic;
+    color: var(--ink-mute);
+    margin-top: 16px;
+    font-size: 11px;
+  }
+
+  @media (max-width: 700px) {
+    .container { padding: 20px 14px 60px; }
+    .result { grid-template-columns: 44px 1fr; }
+    .right-block { grid-column: 2; text-align: left; padding-top: 0; margin-top: 6px; }
+    .filters { gap: 16px; }
+    .clear-btn { margin-left: 0; }
+    .detail { padding-left: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="masthead">
+    <div class="commonwealth">Commonwealth of Massachusetts · Sentencing Commission</div>
+    <h1>Master Crime List <em>— Offense Seriousness Lookup</em></h1>
+    <div class="sub">Felony &amp; Misdemeanor offenses on the sentencing guidelines grid · 2,186 entries</div>
+  </header>
+
+  <div class="caveat">
+    <strong>Source notice — read before use</strong>
+    <span class="lede">This list reflects the Sentencing Commission's December 2015 publication.</span>
+    Many penalty provisions have been amended since (e.g., domestic-violence felony enhancements added by St. 2014, c. 260; criminal-justice reform St. 2018, c. 69; bail reform). Verify any entry against current M.G.L. before relying on it. Items shown in <em style="color:var(--warn);font-weight:600;">amber italics</em> are <strong style="color:var(--warn)">Note K — tentative</strong> rankings never adopted by full commission vote (372 of 2,186, ≈ 17%).
+  </div>
+
+  <details class="grid-panel" id="grid-panel">
+    <summary>
+      <strong>Sentencing Guidelines Grid</strong>
+      <span class="ref">Figure 3 · Mass. Sentencing Commission reference</span>
+    </summary>
+    <div class="body" id="grid-body"><!-- table rendered by JS --></div>
+  </details>
+
+  <div class="search-wrap">
+    <span class="search-icon">⌕</span>
+    <input id="search" class="search-input" type="text" placeholder="Search by offense, citation, section, or note (e.g. RAPE, c. 265 s. 13M, OUI)" autocomplete="off">
+    <button id="clear-search" class="search-clear" aria-label="Clear">✕</button>
+  </div>
+
+  <div class="filters">
+    <div class="filter-group">
+      <span class="filter-label">Level</span>
+      <button class="chip level-chip" data-level="1">1</button>
+      <button class="chip level-chip" data-level="2">2</button>
+      <button class="chip level-chip" data-level="3">3</button>
+      <button class="chip level-chip" data-level="4">4</button>
+      <button class="chip level-chip" data-level="5">5</button>
+      <button class="chip level-chip" data-level="6">6</button>
+      <button class="chip level-chip" data-level="7">7</button>
+      <button class="chip level-chip" data-level="8">8</button>
+      <button class="chip level-chip" data-level="9">9</button>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Type</span>
+      <button class="chip" data-penalty="Felony">Felony</button>
+      <button class="chip" data-penalty="Misd.">Misdemeanor</button>
+    </div>
+    <div class="filter-group">
+      <label class="toggle"><input type="checkbox" id="hide-tentative"> <span>Hide Note K (tentative)</span></label>
+    </div>
+    <button id="clear-all" class="clear-btn">Clear all filters</button>
+  </div>
+
+  <div class="status-row">
+    <div class="count">Showing <strong id="count">2,186</strong> of 2,186 offenses</div>
+    <div id="histogram" class="histogram" title="Distribution by level"></div>
+  </div>
+
+  <ul id="results" class="results"></ul>
+  <div id="empty" class="empty-state" style="display:none;">
+    <div class="big">No offenses match.</div>
+    <div class="hint">Try MA-specific terminology: <kbd>B&amp;E</kbd> (not "breaking"), <kbd>OUI</kbd> (not "DUI"), <kbd>A&amp;B</kbd>, <kbd>UFL</kbd>, or search by citation like <kbd>c. 265 s. 13A</kbd>.</div>
+  </div>
+
+  <footer class="footnotes">
+    <h3>End-Notes (from the source)</h3>
+    <dl class="notes-grid">
+      <dt>Note A</dt><dd>Guidelines range exceeds statutory maximum in some grid cells. Range applies, but no sentence may exceed the max.</dd>
+      <dt>Note B</dt><dd>Statutory minimum exceeds guidelines range in some cells. Imposing the statutory minimum is not a departure.</dd>
+      <dt>Note C</dt><dd>Mandatory minimum sentence exceeds guidelines range in some cells. Mandatory minimum applies and is not a departure.</dd>
+      <dt>Note D</dt><dd>Sentence shall be served from and after — see Sentencing Guide.</dd>
+      <dt>Note E</dt><dd>Habitual-offender enhancement available.</dd>
+      <dt>Note F</dt><dd>Subsequent-offense enhancement; see Sentencing Guide.</dd>
+      <dt>Note G</dt><dd>Staircase factor — seriousness level depends on degree of injury or other specified factor.</dd>
+      <dt>Note H</dt><dd>Defendant's criminal-history group is enhanced as described in the Sentencing Guide.</dd>
+      <dt>Note I</dt><dd>Same level as the underlying substantive offense; no sentence may exceed the statutory maximum.</dd>
+      <dt>Note J</dt><dd>One level lower than the underlying substantive offense; no sentence may exceed the statutory maximum.</dd>
+      <dt style="color:var(--warn)">Note K</dt><dd style="color:var(--warn)"><strong>Tentative ranking — not adopted by full commission vote.</strong> Treat as advisory only.</dd>
+    </dl>
+    <div class="colophon">
+      Data extracted from the Massachusetts Sentencing Commission, <em>Felony and Misdemeanor Master Crime List</em> (Dec. 2015). 162 pp., OCLC 945770334. Levels in parentheses ( ) in the original indicate Note K tentative status. Where the source omits a penalty type or sentence range, the omission is preserved.
+    </div>
+  </footer>
+
+</div>
+
+<!-- data loaded via fetch from /data/crime_list.json -->
+<script>
+(function() {
+  // Loading state
+  const resultsEl = document.getElementById('results');
+  const emptyEl   = document.getElementById('empty');
+  resultsEl.innerHTML = '<li style="padding:60px 0;text-align:center;font-family:var(--serif);font-size:18px;font-style:italic;color:var(--ink-mute);">Loading offense data…</li>';
+
+  fetch('./data/crime_list.json', {cache: 'force-cache'})
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(raw => boot(raw))
+    .catch(err => {
+      resultsEl.innerHTML = '<li style="padding:60px 0;text-align:center;font-family:var(--serif);color:var(--accent);">Failed to load data: ' + err.message + '</li>';
+    });
+
+  function boot(raw) {
+  const FIELDS = raw.fields;
+  const STATUS_MAP = raw.status_map;
+  const ROWS = raw.rows;
+
+  // ── Sentencing Grid (Figure 3) ────────────────────────
+  // Cell ranges are MAXIMUM sentence ranges (Not More Than).
+  // Minimum = 2/3 of max (Not Less Than) — also the parole eligibility date.
+  // Zones: I=Incarceration, D=Discretionary, M=Intermediate Sanction only, N=No Supervision.
+  const GRID = {
+    9: { ex: 'Murder',                     ranges:['Life','Life','Life','Life','Life'],            zones:'IIIII', prob:'3 Yrs' },
+    8: { ex: 'Manslaughter (Voluntary)',   ranges:['96–144','108–162','120–180','144–216','204–306'], unit:'Mos.', zones:'IIIII', prob:'3 Yrs' },
+    7: { ex: 'Armed Robbery (Gun)',        ranges:['60–90','68–102','84–126','108–162','160–240'],   unit:'Mos.', zones:'IIIII', prob:'3 Yrs' },
+    6: { ex: 'Manslaughter (Involuntary)', ranges:['40–60','45–67','50–75','60–90','80–120'],         unit:'Mos.', zones:'IIIII', prob:'3 Yrs' },
+    5: { ex: 'Indecent A&B on Child <14',  ranges:['12–36','24–36','36–54','48–72','60–90'],          unit:'Mos.', zones:'DIIII', prob:'2 Yrs' },
+    4: { ex: 'Larceny From a Person',      ranges:['0–24','3–30','6–30','20–30','24–36'],             unit:'Mos.', zones:'DDIII', prob:'2 Yrs' },
+    3: { ex: 'A&B DW (no/minor injury)',   ranges:['0–12','0–15','0–18','0–24','6–24'],               unit:'Mos.', zones:'DDDDD', prob:'2 Yrs' },
+    2: { ex: 'Assault',                    ranges:['—','0–6','0–6','0–9','0–12'],                     unit:'Mos.', zones:'MDDDD', prob:'1 Yr'  },
+    1: { ex: 'Operating Aft. Susp. Lic.',  ranges:['—','—','—','0–3','0–6'],                          unit:'Mos.', zones:'MMMDD', prob:'1 Yr'  },
+    0: { ex: 'License Law Viol. (not MV)', ranges:['IS-0','IS-0','IS-0','IS-0','IS-0'],                            zones:'NNNNN', prob:''       }
+  };
+  const HISTORY = [
+    {col:'A', label:'No / Minor Record'},
+    {col:'B', label:'Moderate Record'},
+    {col:'C', label:'Serious Record'},
+    {col:'D', label:'Violent or Repetitive'},
+    {col:'E', label:'Serious Violent'}
+  ];
+  const ZONES = {
+    I: {name:'Incarceration',        desc:'Mandatory incarceration; intermediate sanctions require departure.'},
+    D: {name:'Discretionary',        desc:'Both incarceration and intermediate sanctions are within guidelines.'},
+    M: {name:'Intermediate Sanction', desc:'Only intermediate sanctions within guidelines; incarceration requires departure.'},
+    N: {name:'No Supervision',       desc:'No incarceration, probation, supervision, fees, or fines.'}
+  };
+
+  function renderFullGrid() {
+    const body = document.getElementById('grid-body');
+    let html = '<table class="sg-grid"><thead><tr>';
+    html += '<th></th>';
+    HISTORY.forEach(h => {
+      html += '<th><span class="hist-letter">' + h.col + '</span>' + escapeHtml(h.label) + '</th>';
+    });
+    html += '<th>Probation</th></tr></thead><tbody>';
+    // Levels 9 down to 0
+    for (let lvl = 9; lvl >= 0; lvl--) {
+      const g = GRID[lvl];
+      html += '<tr>';
+      html += '<th class="row-header">' + lvl + '<span class="ex">' + escapeHtml(g.ex) + '</span></th>';
+      for (let i = 0; i < 5; i++) {
+        const z = g.zones[i];
+        const r = g.ranges[i];
+        const isEmpty = r === '—';
+        const cls = 'cell zone-' + z + (isEmpty ? ' empty' : '');
+        html += '<td class="' + cls + '" data-level="' + lvl + '" data-hist="' + HISTORY[i].col + '" title="Level ' + lvl + ' / History ' + HISTORY[i].col + ' (' + escapeHtml(HISTORY[i].label) + ')&#10;Zone: ' + ZONES[z].name + '">';
+        if (!isEmpty) {
+          html += escapeHtml(r);
+          if (g.unit && r !== 'Life' && r !== 'IS-0') html += '<br><span style="font-size:9px;color:var(--ink-mute);">' + g.unit + '</span>';
+        }
+        html += '</td>';
+      }
+      html += '<td class="prob' + (g.prob ? '' : ' empty') + '">' + escapeHtml(g.prob || '—') + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    // Legend
+    html += '<div class="zone-legend">';
+    Object.keys(ZONES).forEach(k => {
+      html += '<div class="item"><span class="swatch zone-' + k + '"></span><div><span class="name">' + ZONES[k].name + ' Zone</span><span class="desc">' + ZONES[k].desc + '</span></div></div>';
+    });
+    html += '</div>';
+    // 2/3 rule
+    html += '<div class="grid-rule"><strong>How to read a cell</strong>The numbers are the <em>maximum</em> sentence range (Not More Than) from which the judge selects an upper bound. The <em>minimum</em> sentence (Not Less Than) is two-thirds of the chosen maximum and sets the initial parole-eligibility date. No sentence may exceed the statutory maximum.</div>';
+    body.innerHTML = html;
+
+    // Wire up cell clicks → filter by level
+    body.querySelectorAll('td.cell:not(.empty)').forEach(td => {
+      td.addEventListener('click', () => {
+        const lvl = td.getAttribute('data-level');
+        // Toggle just that level filter
+        state.levels.clear();
+        state.levels.add(lvl);
+        document.querySelectorAll('.chip[data-level]').forEach(c => {
+          c.classList.toggle('active', c.getAttribute('data-level') === lvl);
+        });
+        document.getElementById('grid-panel').open = false;
+        render();
+        document.getElementById('search').focus();
+      });
+    });
+  }
+
+  function renderRowContext(level, status) {
+    const g = GRID[level];
+    if (!g) return '';
+    const lvlClass = status === 'T' ? 'tentative' : '';
+    let html = '<div class="row-context"><div class="row-context-label">Position on the Sentencing Grid · Level ' + escapeHtml(level) + '</div>';
+    html += '<div class="row-strip">';
+    // First row: history headers
+    html += '<div class="level-cell">' + escapeHtml(level);
+    if (status === 'T') html += '<span class="lvl-tag">tent.</span>';
+    html += '</div>';
+    HISTORY.forEach(h => {
+      html += '<div class="head"><span class="letter">' + h.col + '</span>' + escapeHtml(h.label) + '</div>';
+    });
+    html += '<div class="prob-cell">';
+    if (g.prob) html += '<span>Max&nbsp;Probation<br><strong>' + escapeHtml(g.prob) + '</strong></span>';
+    else html += '<span style="color:var(--ink-faint);">—</span>';
+    html += '</div>';
+    // Second row: cells
+    for (let i = 0; i < 5; i++) {
+      const z = g.zones[i];
+      const r = g.ranges[i];
+      const isEmpty = r === '—';
+      const cls = 'cell zone-' + z + (isEmpty ? ' empty' : '');
+      html += '<div class="' + cls + '" title="History ' + h_label(i) + '&#10;Zone: ' + ZONES[z].name + '">';
+      html += isEmpty ? 'no range' : escapeHtml(r) + (g.unit && r !== 'Life' && r !== 'IS-0' ? '&nbsp;' + g.unit.replace('.', '') : '');
+      html += '</div>';
+    }
+    html += '</div>';
+    // Note
+    html += '<div class="row-context-note"><strong>Read across:</strong> the offense\'s seriousness level (' + escapeHtml(level) + ') sets the row; the defendant\'s criminal-history category (A–E) sets the column. Each cell is the <em>maximum</em> sentence range (Not More Than). The minimum (Not Less Than) is 2/3 of the chosen max and is also the parole-eligibility date.</div>';
+    html += '</div>';
+    return html;
+  }
+  function h_label(i) { return HISTORY[i].col + ' (' + HISTORY[i].label + ')'; }
+
+  // Field index lookup
+  const F = {};
+  FIELDS.forEach((name, i) => { F[name] = i; });
+
+  // Build lowercase search index once
+  const searchIdx = ROWS.map(row => {
+    const title = (row[F.offense_title] || '').toLowerCase();
+    const ref   = (row[F.offense_ref]   || '').toLowerCase();
+    const pref  = (row[F.penalty_ref]   || '').toLowerCase();
+    const notes = (row[F.notes]         || '').toLowerCase();
+    return title + ' ' + ref + ' ' + pref + ' ' + notes;
+  });
+
+  // ── State ─────────────────────────────────────────────
+  const state = {
+    query: '',
+    levels: new Set(),
+    penalty: null,         // 'Felony' | 'Misd.' | null
+    hideTentative: false,
+    expanded: new Set(),   // indices currently expanded
+  };
+
+  // ── Filter logic ──────────────────────────────────────
+  function passes(rowIdx) {
+    const row = ROWS[rowIdx];
+    if (state.levels.size > 0) {
+      const lvl = row[F.level_number];
+      if (!state.levels.has(lvl)) return false;
+    }
+    if (state.penalty) {
+      const pt = row[F.penalty_type] || '';
+      // Felony filter matches any "Felony*" (e.g. "Felony Under $10,000")
+      if (state.penalty === 'Felony' && !pt.startsWith('Felony')) return false;
+      if (state.penalty === 'Misd.' && !pt.startsWith('Misd')) return false;
+    }
+    if (state.hideTentative && row[F.level_status] === 'T') return false;
+    if (state.query) {
+      const tokens = state.query.toLowerCase().split(/\s+/).filter(Boolean);
+      const idx = searchIdx[rowIdx];
+      for (const t of tokens) { if (!idx.includes(t)) return false; }
+    }
+    return true;
+  }
+
+  // ── Rendering ─────────────────────────────────────────
+  const countEl   = document.getElementById('count');
+  const histEl    = document.getElementById('histogram');
+
+  function levelClass(status) {
+    if (status === 'T') return 'tentative';
+    if (status === 'C') return 'contingent';
+    return '';
+  }
+
+  function highlight(text, tokens) {
+    if (!tokens.length) return escapeHtml(text);
+    let safe = escapeHtml(text);
+    for (const t of tokens) {
+      if (!t) continue;
+      const re = new RegExp('(' + escapeRe(t) + ')', 'gi');
+      safe = safe.replace(re, '<mark style="background:var(--paper-deep);color:var(--accent);font-weight:600;padding:0 2px;">$1</mark>');
+    }
+    return safe;
+  }
+
+  function escapeHtml(s) { return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function escapeRe(s)  { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+  function renderRow(rowIdx, tokens) {
+    const r = ROWS[rowIdx];
+    const lvlNum = r[F.level_number];
+    const lvlStat = r[F.level_status];
+    const lvlCls = levelClass(lvlStat);
+
+    let levelDisplay;
+    if (!lvlNum) {
+      levelDisplay = '<div class="level-num bare">—</div>';
+    } else if (lvlStat === 'C') {
+      levelDisplay = '<div class="level-num contingent">cont.</div>';
+    } else {
+      levelDisplay = '<div class="level-num ' + lvlCls + '">' + escapeHtml(lvlNum) + '</div>';
+    }
+    if (lvlStat === 'T') levelDisplay += '<div class="level-tag">tent.</div>';
+
+    const pt = r[F.penalty_type] || '';
+    const ptClass = pt.startsWith('Felony') ? 'penalty-felony' : (pt.startsWith('Misd') ? 'penalty-misd' : '');
+    const ptHtml = pt ? '<span class="penalty-tag ' + ptClass + '">' + escapeHtml(pt) + '</span>' : '';
+
+    const ref = r[F.offense_ref] || '';
+    const refHtml = ref ? '<span class="citation">' + escapeHtml(ref) + '</span>' : '';
+
+    const notes = r[F.notes] || '';
+    const notesHtml = notes ? '<span class="note-tag">' + escapeHtml(notes) + '</span>' : '';
+
+    const stair = r[F.staircase] || '';
+    const stairHtml = stair ? '<span class="note-tag" style="color:var(--ink-mute);">' + escapeHtml(stair) + '</span>' : '';
+
+    // Right-side sentencing summary
+    const minHC = r[F.min_hc], maxHC = r[F.max_hc];
+    const minP  = r[F.min_prison], maxP = r[F.max_prison];
+    const mand  = r[F.mand_time];
+
+    let rightLines = [];
+    if (mand)        rightLines.push('Mand: <strong>' + escapeHtml(mand) + '</strong>');
+    if (minHC || maxHC) rightLines.push('H/C: <strong>' + escapeHtml((minHC || '—') + ' / ' + (maxHC || '—')) + '</strong>');
+    if (minP || maxP)   rightLines.push('Prison: <strong>' + escapeHtml((minP || '—') + ' / ' + (maxP || '—')) + '</strong>');
+    if (rightLines.length === 0) rightLines.push('<span style="color:var(--ink-faint);">no penalty range</span>');
+
+    const expanded = state.expanded.has(rowIdx);
+
+    let detailHtml = '';
+    if (expanded) {
+      const ppRef = r[F.penalty_ref] || '';
+      detailHtml = '<div class="detail"><dl class="detail-grid">' +
+        kv('Offense Reference',     ref) +
+        kv('Penalty Reference',     ppRef) +
+        kv('Notes',                 notes) +
+        kv('Staircase Factor',      stair) +
+        kv('Penalty Type',          pt) +
+        kv('Mandatory Time',        mand) +
+        kv('Min House of Correction', minHC) +
+        kv('Max House of Correction', maxHC) +
+        kv('Min State Prison',      minP) +
+        kv('Max State Prison',      maxP) +
+        kv('On Sentencing Grid',    r[F.grid]) +
+        kv('Level Status',          STATUS_MAP[lvlStat] || lvlStat) +
+        '</dl>';
+      if (lvlStat === 'T') {
+        detailHtml += '<div class="note-explainer"><strong style="color:var(--warn)">Note K (tentative):</strong> This ranking was never adopted by a vote of the full commission. The Sentencing Commission published it as a working classification only. Use with caution.</div>';
+      }
+      // Grid row context — only when we have a numeric level
+      if (lvlNum && /^\d+$/.test(lvlNum) && GRID[parseInt(lvlNum, 10)]) {
+        detailHtml += renderRowContext(lvlNum, lvlStat);
+      } else if (lvlStat === 'C') {
+        detailHtml += '<div class="contingent-msg"><strong>Contingent level:</strong> the seriousness level depends on the underlying substantive offense (e.g., accessory after the fact). Look up the underlying offense to find the applicable grid row.</div>';
+      }
+      detailHtml += '</div>';
+    }
+
+    return '<li class="result' + (expanded ? ' expanded' : '') + '" data-idx="' + rowIdx + '">' +
+      '<div class="level-block">' + levelDisplay + '</div>' +
+      '<div class="body-block">' +
+        '<div class="title">' + highlight(r[F.offense_title] || '', tokens) + '</div>' +
+        '<div class="meta">' + ptHtml + refHtml + notesHtml + stairHtml + '</div>' +
+      '</div>' +
+      '<div class="right-block">' +
+        rightLines.map(l => '<div class="sentence-line">' + l + '</div>').join('') +
+      '</div>' +
+      detailHtml +
+    '</li>';
+  }
+
+  function kv(label, value) {
+    if (value && String(value).trim()) {
+      return '<div><dt>' + escapeHtml(label) + '</dt><dd>' + escapeHtml(value) + '</dd></div>';
+    }
+    return '<div><dt>' + escapeHtml(label) + '</dt><dd class="empty">—</dd></div>';
+  }
+
+  function render() {
+    const tokens = state.query.toLowerCase().split(/\s+/).filter(Boolean);
+    const matched = [];
+    const histo = {};
+    for (let i = 0; i < ROWS.length; i++) {
+      if (passes(i)) {
+        matched.push(i);
+        const lvl = ROWS[i][F.level_number] || '?';
+        histo[lvl] = (histo[lvl] || 0) + 1;
+      }
+    }
+    countEl.textContent = matched.length.toLocaleString();
+    if (matched.length === 0) {
+      resultsEl.innerHTML = '';
+      emptyEl.style.display = 'block';
+    } else {
+      emptyEl.style.display = 'none';
+      // Cap displayed results for perf — show all up to 500, then a "more" notice
+      const cap = 500;
+      const display = matched.slice(0, cap);
+      let html = display.map(idx => renderRow(idx, tokens)).join('');
+      if (matched.length > cap) {
+        html += '<li style="padding:24px 0;text-align:center;font-family:var(--sans);font-size:13px;color:var(--ink-mute);font-style:italic;">' +
+          (matched.length - cap).toLocaleString() + ' more results — narrow the search to see them.' +
+          '</li>';
+      }
+      resultsEl.innerHTML = html;
+    }
+
+    // Histogram
+    let maxCount = 0;
+    Object.values(histo).forEach(v => { if (v > maxCount) maxCount = v; });
+    const labels = ['1','2','3','4','5','6','7','8','9'];
+    histEl.innerHTML = labels.map(l => {
+      const c = histo[l] || 0;
+      const h = maxCount ? Math.max(2, Math.round(20 * c / maxCount)) : 0;
+      return '<div class="histo-bar" style="height:' + h + 'px;" title="Level ' + l + ': ' + c + '"><div class="label">' + l + '</div></div>';
+    }).join('');
+  }
+
+  // ── Event wiring ──────────────────────────────────────
+  const searchEl = document.getElementById('search');
+  const clearSearchBtn = document.getElementById('clear-search');
+  let timer;
+  searchEl.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      state.query = searchEl.value.trim();
+      clearSearchBtn.classList.toggle('show', !!state.query);
+      state.expanded.clear();
+      render();
+    }, 80);
+  });
+  clearSearchBtn.addEventListener('click', () => {
+    searchEl.value = '';
+    state.query = '';
+    clearSearchBtn.classList.remove('show');
+    state.expanded.clear();
+    render();
+    searchEl.focus();
+  });
+
+  document.querySelectorAll('.chip[data-level]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const lvl = btn.getAttribute('data-level');
+      if (state.levels.has(lvl)) state.levels.delete(lvl);
+      else state.levels.add(lvl);
+      btn.classList.toggle('active');
+      render();
+    });
+  });
+
+  document.querySelectorAll('.chip[data-penalty]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = btn.getAttribute('data-penalty');
+      if (state.penalty === p) {
+        state.penalty = null;
+        btn.classList.remove('active');
+      } else {
+        state.penalty = p;
+        document.querySelectorAll('.chip[data-penalty]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      }
+      render();
+    });
+  });
+
+  document.getElementById('hide-tentative').addEventListener('change', e => {
+    state.hideTentative = e.target.checked;
+    render();
+  });
+
+  document.getElementById('clear-all').addEventListener('click', () => {
+    searchEl.value = '';
+    state.query = '';
+    clearSearchBtn.classList.remove('show');
+    state.levels.clear();
+    state.penalty = null;
+    state.hideTentative = false;
+    state.expanded.clear();
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    document.getElementById('hide-tentative').checked = false;
+    render();
+  });
+
+  resultsEl.addEventListener('click', e => {
+    const li = e.target.closest('.result');
+    if (!li) return;
+    const idx = parseInt(li.getAttribute('data-idx'), 10);
+    if (state.expanded.has(idx)) state.expanded.delete(idx);
+    else state.expanded.add(idx);
+    render();
+  });
+
+  renderFullGrid();
+  render();
+  searchEl.focus();
+  } // end boot
+})();
+</script>
+</body>
+</html>
