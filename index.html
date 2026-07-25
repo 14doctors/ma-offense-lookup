@@ -436,6 +436,70 @@
   .search-clear:hover { color: var(--accent); }
   .search-clear.show { display: block; }
 
+  /* ── AI plain-English search ── */
+  .ai-wrap { margin: -6px 0 16px; }
+  .ai-form { position: relative; display: flex; align-items: center; gap: 10px; }
+  .ai-icon { font-size: 15px; color: var(--accent-soft); pointer-events: none; }
+  .ai-input {
+    flex: 1;
+    font-family: var(--serif);
+    font-size: 15px;
+    background: transparent;
+    border: none;
+    border-bottom: 1px dashed var(--paper-line);
+    padding: 8px 0;
+    color: var(--ink);
+    outline: none;
+  }
+  .ai-input:focus { border-bottom-color: var(--accent-soft); border-bottom-style: solid; }
+  .ai-input::placeholder { color: var(--ink-faint); font-style: italic; }
+  .ai-btn {
+    font-family: var(--sans);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: transparent;
+    border: 1px solid var(--ink-mute);
+    color: var(--ink-soft);
+    padding: 5px 14px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .ai-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .ai-btn:disabled { opacity: 0.5; cursor: wait; }
+  .ai-status {
+    font-family: var(--sans);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    background: var(--paper-deep);
+    border-left: 3px solid var(--accent-soft);
+    padding: 10px 12px;
+    margin-top: 10px;
+  }
+  .ai-status.error { border-left-color: var(--warn); }
+  .ai-clear {
+    font-family: var(--sans);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0;
+    margin-left: 8px;
+  }
+  .ai-why {
+    list-style: none;
+    font-family: var(--sans);
+    font-size: 12px;
+    color: var(--ink-mute);
+    font-style: italic;
+    padding: 2px 0 10px 18px;
+  }
+
   /* ── Filters ───────────────────────────────────────────── */
   .filters {
     display: flex;
@@ -767,6 +831,17 @@
     <button id="clear-search" class="search-clear" aria-label="Clear">✕</button>
   </div>
 
+  <div class="ai-wrap">
+    <form id="ai-form" class="ai-form">
+      <span class="ai-icon">✦</span>
+      <input id="ai-input" class="ai-input" type="text"
+             placeholder='Or describe it in plain English — "drunk driving, third offense" or "stole a laptop from a car" — answered by Claude'
+             autocomplete="off" maxlength="500">
+      <button id="ai-go" class="ai-btn" type="submit">Ask AI</button>
+    </form>
+    <div id="ai-status" class="ai-status" style="display:none;"></div>
+  </div>
+
   <div class="filters">
     <div class="filter-group">
       <span class="filter-label">Level</span>
@@ -988,6 +1063,7 @@
     penalty: null,         // 'Felony' | 'Misd.' | null
     hideTentative: false,
     expanded: new Set(),   // indices currently expanded
+    aiMatches: null,       // [{idx, why}] — AI plain-English results; overrides filters
   };
 
   // ── Filter logic ──────────────────────────────────────
@@ -1131,11 +1207,21 @@
     const tokens = state.query.toLowerCase().split(/\s+/).filter(Boolean);
     const matched = [];
     const histo = {};
-    for (let i = 0; i < ROWS.length; i++) {
-      if (passes(i)) {
-        matched.push(i);
-        const lvl = ROWS[i][F.level_number] || '?';
+    const whyByIdx = {};
+    if (state.aiMatches) {
+      for (const m of state.aiMatches) {
+        matched.push(m.idx);
+        if (m.why) whyByIdx[m.idx] = m.why;
+        const lvl = ROWS[m.idx][F.level_number] || '?';
         histo[lvl] = (histo[lvl] || 0) + 1;
+      }
+    } else {
+      for (let i = 0; i < ROWS.length; i++) {
+        if (passes(i)) {
+          matched.push(i);
+          const lvl = ROWS[i][F.level_number] || '?';
+          histo[lvl] = (histo[lvl] || 0) + 1;
+        }
       }
     }
     countEl.textContent = matched.length.toLocaleString();
@@ -1147,7 +1233,8 @@
       // Cap displayed results for perf — show all up to 500, then a "more" notice
       const cap = 500;
       const display = matched.slice(0, cap);
-      let html = display.map(idx => renderRow(idx, tokens)).join('');
+      let html = display.map(idx => renderRow(idx, tokens) +
+        (whyByIdx[idx] ? '<li class="ai-why">↳ ' + escapeHtml(whyByIdx[idx]) + '</li>' : '')).join('');
       if (matched.length > cap) {
         html += '<li style="padding:24px 0;text-align:center;font-family:var(--sans);font-size:13px;color:var(--ink-mute);font-style:italic;">' +
           (matched.length - cap).toLocaleString() + ' more results — narrow the search to see them.' +
@@ -1174,6 +1261,7 @@
   searchEl.addEventListener('input', () => {
     clearTimeout(timer);
     timer = setTimeout(() => {
+      if (state.aiMatches) clearAi(true);
       state.query = searchEl.value.trim();
       clearSearchBtn.classList.toggle('show', !!state.query);
       state.expanded.clear();
@@ -1189,8 +1277,76 @@
     searchEl.focus();
   });
 
+  // ── AI plain-English search ───────────────────────────
+  const aiForm = document.getElementById('ai-form');
+  const aiInput = document.getElementById('ai-input');
+  const aiBtn = document.getElementById('ai-go');
+  const aiStatus = document.getElementById('ai-status');
+
+  function setAiStatus(html, isError) {
+    aiStatus.innerHTML = html;
+    aiStatus.classList.toggle('error', !!isError);
+    aiStatus.style.display = 'block';
+  }
+  function clearAi(keepInput) {
+    state.aiMatches = null;
+    aiStatus.style.display = 'none';
+    aiStatus.innerHTML = '';
+    if (!keepInput) aiInput.value = '';
+  }
+
+  aiForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const q = aiInput.value.trim();
+    if (!q || aiBtn.disabled) return;
+    aiBtn.disabled = true;
+    setAiStatus('Asking Claude — this can take ten seconds or more…');
+    try {
+      const resp = await fetch('./api/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q }),
+      });
+      if (resp.status === 404 || resp.status === 405) {
+        throw new Error('AI search is not available on this host — it needs the Vercel deployment with an ANTHROPIC_API_KEY configured. Keyword search above still works.');
+      }
+      let data;
+      try { data = await resp.json(); } catch (_) { data = {}; }
+      if (!resp.ok) throw new Error(data.error || 'Request failed (' + resp.status + ')');
+
+      // AI results replace the keyword search and filters
+      searchEl.value = '';
+      state.query = '';
+      clearSearchBtn.classList.remove('show');
+      state.levels.clear();
+      state.penalty = null;
+      state.hideTentative = false;
+      document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      document.getElementById('hide-tentative').checked = false;
+      state.expanded.clear();
+
+      state.aiMatches = (data.matches || [])
+        .filter(m => Number.isInteger(m.row) && m.row >= 0 && m.row < ROWS.length)
+        .map(m => ({ idx: m.row, why: m.why || '' }));
+
+      let html = '<strong>Claude:</strong> ' + escapeHtml(data.interpretation || '');
+      if (data.caveats) html += ' <em>' + escapeHtml(data.caveats) + '</em>';
+      html += '<button type="button" id="ai-clear" class="ai-clear">Clear AI results</button>';
+      setAiStatus(html);
+      document.getElementById('ai-clear').addEventListener('click', () => { clearAi(); render(); });
+      render();
+    } catch (err) {
+      state.aiMatches = null;
+      setAiStatus(escapeHtml(err && err.message ? err.message : String(err)), true);
+      render();
+    } finally {
+      aiBtn.disabled = false;
+    }
+  });
+
   document.querySelectorAll('.chip[data-level]').forEach(btn => {
     btn.addEventListener('click', () => {
+      if (state.aiMatches) clearAi(true);
       const lvl = btn.getAttribute('data-level');
       if (state.levels.has(lvl)) state.levels.delete(lvl);
       else state.levels.add(lvl);
@@ -1201,6 +1357,7 @@
 
   document.querySelectorAll('.chip[data-penalty]').forEach(btn => {
     btn.addEventListener('click', () => {
+      if (state.aiMatches) clearAi(true);
       const p = btn.getAttribute('data-penalty');
       if (state.penalty === p) {
         state.penalty = null;
@@ -1215,11 +1372,13 @@
   });
 
   document.getElementById('hide-tentative').addEventListener('change', e => {
+    if (state.aiMatches) clearAi(true);
     state.hideTentative = e.target.checked;
     render();
   });
 
   document.getElementById('clear-all').addEventListener('click', () => {
+    clearAi();
     searchEl.value = '';
     state.query = '';
     clearSearchBtn.classList.remove('show');

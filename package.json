@@ -1,0 +1,9 @@
+{
+  "name": "ma-offense-lookup",
+  "private": true,
+  "type": "module",
+  "description": "Static MA Master Crime List lookup with an optional Claude-powered plain-English search (Vercel serverless function).",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0"
+  }
+}

@@ -11,7 +11,10 @@ presumptive sentence ranges across all five criminal-history columns.
 ## What this is
 
 - One static HTML file plus one JSON corpus file. No build step, no
-  server, no framework, no dependencies.
+  server, no framework, no dependencies. (An optional Claude-powered
+  plain-English search adds one serverless function and one npm
+  dependency — used only on Vercel deployments; the static app is
+  unchanged without it. See "AI plain-English search" below.)
 - The JSON corpus is loaded once via `fetch()` on page load and is
   cached aggressively; subsequent searches are instant client-side
   filters.
@@ -28,8 +31,12 @@ ma-offense-lookup/
 ├── index.html              # The app — UI, styles, and search logic
 ├── data/
 │   └── crime_list.json     # Extracted corpus (compact array format)
+├── api/
+│   └── ask.js              # Optional — Claude-powered plain-English search
+│                           #   (Vercel serverless function)
+├── package.json            # Optional — @anthropic-ai/sdk for api/ask.js
 ├── .nojekyll               # Tells GitHub Pages to skip Jekyll processing
-├── vercel.json             # Optional — cache headers if hosted on Vercel
+├── vercel.json             # Optional — cache headers + function config on Vercel
 ├── .gitignore
 └── README.md
 ```
@@ -96,7 +103,45 @@ npx vercel --prod      # promote to production
 Or push to GitHub and connect the repo in the Vercel dashboard
 (*Add New → Project → Import*). No framework preset; leave build
 command empty; output directory = root. The included `vercel.json`
-adds long-lived cache headers on `/data/*`.
+adds long-lived cache headers on `/data/*` and configures the
+optional AI search function.
+
+## AI plain-English search (optional, Vercel only)
+
+The "Ask AI" box under the keyword search sends a plain-English
+description ("drunk driving, third offense", "stole a laptop from a
+car") to a Vercel serverless function (`api/ask.js`), which asks
+Claude (`claude-opus-5`) to map it onto the 2,186-offense list. The
+model returns matching row numbers with one-line rationales, an
+interpretation of the query in MA terms, and caveats; the page then
+renders those rows through the normal result list. This directly
+addresses the keyword-vocabulary-mismatch caveat below (DUI → OUI,
+battery → A&B, etc.).
+
+Setup:
+
+1. Deploy to Vercel as above (Vercel installs `@anthropic-ai/sdk`
+   from `package.json` automatically).
+2. In the Vercel project: *Settings → Environment Variables*, add
+   `ANTHROPIC_API_KEY` with a key from
+   https://platform.claude.com/settings/keys. Redeploy.
+
+Notes:
+
+- **The API key never reaches the browser.** All Claude calls happen
+  server-side in the function.
+- **Cost.** The full offense list rides along as a prompt-cached
+  system block (1-hour TTL): the first query in an idle hour writes
+  the cache (a few tens of cents); subsequent queries read it at
+  ~10% of input price and typically cost a cent or two.
+- **Static hosts degrade gracefully.** On GitHub Pages/Netlify/S3
+  there is no function; the Ask AI box reports that AI search is
+  unavailable and keyword search is unaffected.
+- **Latency.** Answers take roughly 5–30 seconds; the function's
+  `maxDuration` is set to 60 s in `vercel.json`.
+- **Same source caveats apply.** The model matches against the
+  December 2015 list — its answers inherit the vintage and Note K
+  caveats, and its `caveats` field flags likely post-2015 changes.
 
 ## Local development
 
@@ -162,8 +207,8 @@ explicit invalidation.
    shorthand: `B&E` (not "breaking"), `OUI` (not "DUI"), `A&B` (not
    "battery"), `UFL` (unlawful firearm), etc. Searches for English
    concept words sometimes return zero hits. The empty-state hint
-   surfaces a few common aliases; a deliberate synonym layer would be
-   a worthwhile future addition.
+   surfaces a few common aliases, and on Vercel deployments the AI
+   plain-English search (above) handles the translation.
 
 5. **Sentencing grid is also 2015-vintage.** The grid shown in the
    reference panel is Figure 3 from the same December 2015
