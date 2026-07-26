@@ -13,10 +13,11 @@ also available through a public, unauthenticated JSON REST API under
 
 | Step | Endpoint | Purpose |
 |------|----------|---------|
-| 1 | `/pid/find?id=hdl:2452/801080` | Resolve the SESD collection's handle to its internal UUID |
-| 2 | `/discover/search/objects?scope={uuid}&dsoType=item&page=N&size=50[&query=...]` | The search function — page through every item in the collection, optionally keyword-filtered |
-| 3 | `/core/items/{uuid}/bundles` → `/core/bundles/{uuid}/bitstreams` | Identify each item's PDF file(s) (the `ORIGINAL` bundle holds the scanned documents) |
-| 4 | `/core/bitstreams/{uuid}/content` | Download the actual PDF |
+| 1 | `/pid/find?id=hdl:2452/801080` | Resolve the SESD handle to its internal UUID and type |
+| 2 | `/core/communities/{uuid}/collections` | The SESD handle is a *community* (a container), so expand it into the collection(s) of items it holds |
+| 3 | `/discover/search/objects?scope={uuid}&dsoType=item&page=N&size=50[&query=...]` | The search function — page through every item in each collection, optionally keyword-filtered (with `/discover/browses/title/items` as a fallback listing) |
+| 4 | `/core/items/{uuid}/bundles` → `/core/bundles/{uuid}/bitstreams` | Identify each item's PDF file(s) (the `ORIGINAL` bundle holds the scanned documents) |
+| 5 | `/core/bitstreams/{uuid}/content` | Download the actual PDF |
 
 `2452/801080` is the handle of the repository's dedicated
 **South Essex Sewerage District** collection, which contains the digitized

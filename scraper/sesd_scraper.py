@@ -87,10 +87,10 @@ def get_json(url):
 
 
 def resolve_handle(handle):
-    """Resolve a DSpace handle to the object's UUID and name."""
+    """Resolve a DSpace handle to the object's UUID, name, and type."""
     url = f"{BASE}/pid/find?id=hdl:{urllib.parse.quote(handle, safe='/')}"
     obj = get_json(url)
-    return obj["uuid"], obj.get("name", "")
+    return obj["uuid"], obj.get("name", ""), obj.get("type", "")
 
 
 def first_metadata(obj, key, default=""):
@@ -98,8 +98,44 @@ def first_metadata(obj, key, default=""):
     return values[0]["value"] if values else default
 
 
-def iter_collection_items(scope_uuid, query=None):
-    """Yield every item in the collection via the discovery search API."""
+def paged(url_base, embedded_key):
+    """Yield objects from a paginated DSpace endpoint."""
+    page = 0
+    while True:
+        sep = "&" if "?" in url_base else "?"
+        data = get_json(f"{url_base}{sep}page={page}&size={PAGE_SIZE}")
+        for obj in data.get("_embedded", {}).get(embedded_key, []):
+            yield obj
+        page += 1
+        if page >= data.get("page", {}).get("totalPages", 0):
+            break
+
+
+def collection_scopes(uuid, dso_type):
+    """Expand a community handle into the collections it contains.
+
+    The SESD handle can point at either a collection of items or a
+    community that holds one or more collections; scoped item searches
+    only return results against collections, so communities have to be
+    walked down to their collections (including nested subcommunities).
+    """
+    if dso_type == "collection":
+        return [uuid]
+    scopes = []
+    if dso_type == "community":
+        for col in paged(f"{BASE}/core/communities/{uuid}/collections",
+                         "collections"):
+            print(f"  contains collection: {col.get('name', '?')}")
+            scopes.append(col["uuid"])
+        for sub in paged(f"{BASE}/core/communities/{uuid}/subcommunities",
+                         "subcommunities"):
+            print(f"  descending into subcommunity: {sub.get('name', '?')}")
+            scopes.extend(collection_scopes(sub["uuid"], "community"))
+    return scopes or [uuid]
+
+
+def iter_search_items(scope_uuid, query=None):
+    """Yield items in scope via the discovery search API."""
     page = 0
     while True:
         params = {
@@ -114,11 +150,32 @@ def iter_collection_items(scope_uuid, query=None):
         data = get_json(url)
         result = data["_embedded"]["searchResult"]
         for wrapper in result["_embedded"]["objects"]:
-            yield wrapper["_embedded"]["indexableObject"]
+            obj = wrapper["_embedded"]["indexableObject"]
+            # Some servers ignore dsoType and echo back the container
+            # itself; only pass through real items.
+            if obj.get("type", "item") == "item":
+                yield obj
         page_info = result["page"]
         page += 1
         if page >= page_info.get("totalPages", 0):
             break
+
+
+def iter_collection_items(scope_uuid, query=None):
+    """Yield every item in the collection, with a browse-index fallback."""
+    found = False
+    for item in iter_search_items(scope_uuid, query):
+        found = True
+        yield item
+    if found or query:
+        return
+    # Fallback: the title browse index (what the website's "Browse by
+    # Title" pages use) lists a collection's items even when the scoped
+    # search returns nothing.
+    for item in paged(
+            f"{BASE}/discover/browses/title/items?scope={scope_uuid}",
+            "items"):
+        yield item
 
 
 def item_pdf_bitstreams(item_uuid):
@@ -159,17 +216,23 @@ def main():
 
     out_dir = Path(args.out)
 
-    print(f"Resolving collection handle {args.handle} ...")
-    scope_uuid, name = resolve_handle(args.handle)
-    print(f"  -> {name!r} ({scope_uuid})")
+    print(f"Resolving handle {args.handle} ...")
+    root_uuid, name, dso_type = resolve_handle(args.handle)
+    print(f"  -> {name!r} ({dso_type or 'unknown type'}, {root_uuid})")
+    scopes = collection_scopes(root_uuid, dso_type)
 
     manifest_rows = []
     item_count = 0
     pdf_count = 0
+    seen_items = set()
 
-    for item in iter_collection_items(scope_uuid, query=args.query):
+    for item in (i for scope in scopes
+                 for i in iter_collection_items(scope, query=args.query)):
         if args.limit is not None and item_count >= args.limit:
             break
+        if item["uuid"] in seen_items:
+            continue
+        seen_items.add(item["uuid"])
         item_count += 1
         title = first_metadata(item, "dc.title", item.get("name", "untitled"))
         issued = first_metadata(item, "dc.date.issued")
