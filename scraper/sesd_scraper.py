@@ -82,8 +82,16 @@ def http_get(url, retries=MAX_RETRIES):
     raise RuntimeError(f"Failed after {retries} attempts: {url}") from last_err
 
 
+DEBUG = False
+
+
 def get_json(url):
-    return json.loads(http_get(url).decode("utf-8"))
+    if DEBUG:
+        print(f"    GET {url}", file=sys.stderr)
+    data = json.loads(http_get(url).decode("utf-8"))
+    if DEBUG:
+        print(f"    -> {json.dumps(data)[:400]}", file=sys.stderr)
+    return data
 
 
 def resolve_handle(handle):
@@ -135,15 +143,16 @@ def collection_scopes(uuid, dso_type):
 
 
 def iter_search_items(scope_uuid, query=None):
-    """Yield items in scope via the discovery search API."""
+    """Yield items via the discovery search API, optionally scoped."""
     page = 0
     while True:
         params = {
-            "scope": scope_uuid,
             "dsoType": "item",
             "page": str(page),
             "size": str(PAGE_SIZE),
         }
+        if scope_uuid:
+            params["scope"] = scope_uuid
         if query:
             params["query"] = query
         url = f"{BASE}/discover/search/objects?{urllib.parse.urlencode(params)}"
@@ -151,8 +160,11 @@ def iter_search_items(scope_uuid, query=None):
         result = data["_embedded"]["searchResult"]
         for wrapper in result["_embedded"]["objects"]:
             obj = wrapper["_embedded"]["indexableObject"]
-            # Some servers ignore dsoType and echo back the container
-            # itself; only pass through real items.
+            # The State Library's server echoes the scope object itself
+            # back as a search result (it models agencies as entity
+            # items); skip it and anything that isn't a real item.
+            if obj.get("uuid") == scope_uuid:
+                continue
             if obj.get("type", "item") == "item":
                 yield obj
         page_info = result["page"]
@@ -161,20 +173,27 @@ def iter_search_items(scope_uuid, query=None):
             break
 
 
-def iter_collection_items(scope_uuid, query=None):
-    """Yield every item in the collection, with a browse-index fallback."""
+def iter_collection_items(scope_uuid, query=None, fallback_query=None):
+    """Yield every item in scope, trying three listing strategies:
+    scoped search, then the title browse index (what the website's
+    "Browse by Title" pages use), then a site-wide phrase search for
+    the scope object's name."""
     found = False
     for item in iter_search_items(scope_uuid, query):
         found = True
         yield item
     if found or query:
-        return
-    # Fallback: the title browse index (what the website's "Browse by
-    # Title" pages use) lists a collection's items even when the scoped
-    # search returns nothing.
+        return  # don't fall back to unfiltered listings past an explicit query
+    print("  scoped search returned nothing; trying title browse index...")
     for item in paged(
             f"{BASE}/discover/browses/title/items?scope={scope_uuid}",
             "items"):
+        found = True
+        yield item
+    if found or not fallback_query:
+        return
+    print(f'  browse returned nothing; site-wide search for "{fallback_query}"...')
+    for item in iter_search_items(None, f'"{fallback_query}"'):
         yield item
 
 
@@ -212,7 +231,12 @@ def main():
     ap.add_argument("--limit", type=int, default=None, help="stop after N items")
     ap.add_argument("--dry-run", action="store_true",
                     help="list items and PDFs without downloading")
+    ap.add_argument("--debug", action="store_true",
+                    help="print every API request and a snippet of each response")
     args = ap.parse_args()
+
+    global DEBUG
+    DEBUG = args.debug
 
     out_dir = Path(args.out)
 
@@ -227,7 +251,8 @@ def main():
     seen_items = set()
 
     for item in (i for scope in scopes
-                 for i in iter_collection_items(scope, query=args.query)):
+                 for i in iter_collection_items(scope, query=args.query,
+                                                fallback_query=name)):
         if args.limit is not None and item_count >= args.limit:
             break
         if item["uuid"] in seen_items:
