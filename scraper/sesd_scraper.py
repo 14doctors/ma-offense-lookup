@@ -142,7 +142,7 @@ def collection_scopes(uuid, dso_type):
     return scopes or [uuid]
 
 
-def iter_search_items(scope_uuid, query=None):
+def iter_search_items(scope_uuid, query=None, skip_uuid=None):
     """Yield items via the discovery search API, optionally scoped."""
     page = 0
     while True:
@@ -160,10 +160,10 @@ def iter_search_items(scope_uuid, query=None):
         result = data["_embedded"]["searchResult"]
         for wrapper in result["_embedded"]["objects"]:
             obj = wrapper["_embedded"]["indexableObject"]
-            # The State Library's server echoes the scope object itself
-            # back as a search result (it models agencies as entity
-            # items); skip it and anything that isn't a real item.
-            if obj.get("uuid") == scope_uuid:
+            # The State Library runs DSpace-CRIS and models agencies as
+            # entity items; searches echo the entity itself back as a
+            # result, so skip it along with anything that isn't an item.
+            if skip_uuid and obj.get("uuid") == skip_uuid:
                 continue
             if obj.get("type", "item") == "item":
                 yield obj
@@ -174,27 +174,44 @@ def iter_search_items(scope_uuid, query=None):
 
 
 def iter_collection_items(scope_uuid, query=None, fallback_query=None):
-    """Yield every item in scope, trying three listing strategies:
-    scoped search, then the title browse index (what the website's
-    "Browse by Title" pages use), then a site-wide phrase search for
-    the scope object's name."""
+    """Yield every item in scope, trying listing strategies in order:
+    scoped search, the title browse index (what the website's "Browse
+    by Title" pages use), a site-wide search for the scope UUID (which
+    matches CRIS relation metadata), then a site-wide phrase search
+    for the scope object's name."""
     found = False
-    for item in iter_search_items(scope_uuid, query):
+    for item in iter_search_items(scope_uuid, query=query,
+                                  skip_uuid=scope_uuid):
         found = True
         yield item
-    if found or query:
-        return  # don't fall back to unfiltered listings past an explicit query
-    print("  scoped search returned nothing; trying title browse index...")
-    for item in paged(
-            f"{BASE}/discover/browses/title/items?scope={scope_uuid}",
-            "items"):
-        found = True
-        yield item
-    if found or not fallback_query:
+    if found:
         return
-    print(f'  browse returned nothing; site-wide search for "{fallback_query}"...')
-    for item in iter_search_items(None, f'"{fallback_query}"'):
-        yield item
+    if not query:
+        print("  scoped search returned nothing; trying title browse index...")
+        try:
+            for item in paged(
+                    f"{BASE}/discover/browses/title/items?scope={scope_uuid}",
+                    "items"):
+                found = True
+                yield item
+        except Exception as e:  # the server 500s on entity-item scopes
+            print(f"  browse index unavailable here ({e}); moving on")
+        if found:
+            return
+    candidates = [f'"{scope_uuid}"']
+    if fallback_query:
+        phrase = f'"{fallback_query}"'
+        if query:
+            phrase += f" {query}"
+        candidates.append(phrase)
+    for cand in candidates:
+        print(f"  trying site-wide search: {cand}")
+        for item in iter_search_items(None, query=cand,
+                                      skip_uuid=scope_uuid):
+            found = True
+            yield item
+        if found:
+            return
 
 
 def item_pdf_bitstreams(item_uuid):
