@@ -7,22 +7,37 @@ from the State Library of Massachusetts digital repository at
 ## How the repository works
 
 The State Library's "digital depository" is a [DSpace 7](https://wiki.lyrasis.org/display/DSDOC7x/REST+API)
-repository. That matters because everything the website's search box does is
-also available through a public, unauthenticated JSON REST API under
-`https://archives.lib.state.ma.us/server/api`:
+repository (the DSpace-CRIS variant). That matters because everything the
+website's search box does is also available through a public, unauthenticated
+JSON REST API under `https://archives.lib.state.ma.us/server/api`:
 
 | Step | Endpoint | Purpose |
 |------|----------|---------|
 | 1 | `/pid/find?id=hdl:2452/801080` | Resolve the SESD handle to its internal UUID and type |
-| 2 | `/core/communities/{uuid}/collections` | The SESD handle is a *community* (a container), so expand it into the collection(s) of items it holds |
-| 3 | `/discover/search/objects?scope={uuid}&dsoType=item&page=N&size=50[&query=...]` | The search function — page through every item in each collection, optionally keyword-filtered (with `/discover/browses/title/items` as a fallback listing) |
-| 4 | `/core/items/{uuid}/bundles` → `/core/bundles/{uuid}/bitstreams` | Identify each item's PDF file(s) (the `ORIGINAL` bundle holds the scanned documents) |
-| 5 | `/core/bitstreams/{uuid}/content` | Download the actual PDF |
+| 2 | `/discover/search/objects?...&dsoType=item&page=N&size=50` | The search function — page through matching items, 50 per page |
+| 3 | `/core/items/{uuid}/bundles` → `/core/bundles/{uuid}/bitstreams` | Identify each item's PDF file(s) (the `ORIGINAL` bundle holds the scanned documents) |
+| 4 | `/core/bitstreams/{uuid}/content` | Download the actual PDF |
 
-`2452/801080` is the handle of the repository's dedicated
-**South Essex Sewerage District** collection, which contains the digitized
-annual reports going back to the 1930s. You can see it in a browser at
-<https://archives.lib.state.ma.us/handle/2452/801080>.
+`2452/801080` is the handle of the repository's
+**South Essex Sewerage District** page, which gathers the digitized annual
+reports going back to the 1930s. You can see it in a browser at
+<https://archives.lib.state.ma.us/handle/2452/801080>. On this server the
+handle resolves to a DSpace-CRIS *entity item* representing the agency
+(a migrated collection record), not an ordinary collection — so step 2 tries
+listing strategies in order until one yields items:
+
+1. a search scoped to the resolved object (works for ordinary
+   communities/collections, which are expanded via
+   `/core/communities/{uuid}/collections` first);
+2. the title browse index `/discover/browses/title/items?scope={uuid}`
+   (the server 500s on entity-item scopes — treated as a soft failure);
+3. a site-wide search for the scope UUID (matches CRIS relation metadata);
+4. a site-wide phrase search for the entity's name — the strategy that
+   works for the SESD page.
+
+Because the last strategy is a full-text phrase search, results can include
+other documents that mention the district (old House bills, for example);
+add `--query "annual report"` to narrow to the reports.
 
 ## Usage
 
