@@ -19,6 +19,8 @@ as an open manual step until a human initials it.
 """
 import argparse, datetime, json, os, sys
 
+THIN_OK = {1940, 1942, 1944}   # biennial-session gap years — see draft note
+
 KNOWN = ['1927:36', '1928:294', '1929:22', '1933:226', '1933:335', '1935:384',
          '1945:169', '1945:431', '1945:492', '1948:168', '1956:468', '1957:104',
          '1958:216', '1969:516', '1972:190', '1972:643', '1973:430', '1973:645',
@@ -59,6 +61,9 @@ def main():
         d, st = load(a.out, y)
         if st != 'OK':
             problems.append(f'{y}: {st}')
+            continue
+        if d.get('items', 0) < 100 and y not in THIN_OK:
+            problems.append(f"{y}: SUSPICIOUS ITEM COUNT {d.get('items',0)} — empty or throttled enumeration is never clean")
             continue
         tot_items += d.get('items', 0)
         for h in d.get('hits', []):
@@ -156,7 +161,7 @@ def main():
         'fetch, and every hit was read in full section before classification. For the '
         f'period 1925 to 1996 the State Library repository sweep was completed on '
         f'{today}: every session law of every year was enumerated by chapter number '
-        f'({tot_items:,} items) with numbering continuity verified and no gaps found, '
+        f'({tot_items:,} items) with numbering continuity verified and no gaps found — the thin years 1940, 1942 and 1944 reflect the biennial-session period, Article LXXII of the Amendments to the Constitution having made sessions biennial and Article LXXV having annulled it to restore annual sessions, so only special-session chapters exist for those years — '
         'and the OCR text of every item was swept for the same citation forms and '
         f'names; {len(no_text)} item(s) had no readable text layer'
         + (' (each pulled and read by hand — see the sweep certificate)' if no_text else '')

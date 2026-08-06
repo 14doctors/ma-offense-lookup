@@ -38,6 +38,10 @@ BASE = 'https://archives.lib.state.ma.us/server/api'
 # ---- SESD project defaults (overridable) -----------------------------------
 CITES = ['339:1925', '431:1945', '516:1969', '643:1972']
 NAMES = ['South Essex Sewerage District', 'South Essex sewerage board']
+# Biennial-session period: Amendment Art. LXXII made General Court sessions
+# biennial (1939, 1941, 1943); Art. LXXV annulled it (annual from 1945). The
+# even years held no regular session — a thin enumeration IS clean for them.
+THIN_OK = {1940, 1942, 1944}
 KNOWN = ['1927:36', '1928:294', '1929:22', '1933:226', '1933:335', '1935:384',
          '1945:169', '1945:431', '1945:492', '1948:168', '1956:468', '1957:104',
          '1958:216', '1969:516', '1972:190', '1972:643', '1973:430', '1973:645',
@@ -170,6 +174,8 @@ def sweep_year(year, strict, loose, saidp, out_dir, workers):
     try:
         items = enumerate_year(year)
         out['items'] = len(items)
+        if len(items) < 100 and year not in THIN_OK:
+            raise RuntimeError(f'EMPTY/THIN ENUMERATION ({len(items)} items) — a throttled or failed discovery query is never a clean year')
         out['gaps'] = continuity(items)
         ordered = sorted(items.items(), key=lambda kv: (kv[1][2], kv[1][1]))
 
@@ -218,7 +224,9 @@ def load_done(out_dir, year):
         return None
     try:
         d = json.load(open(p))
-        return d if d.get('status') == 'OK' else None
+        if d.get('status') != 'OK' or (d.get('items', 0) < 100 and year not in THIN_OK):
+            return None      # thin enumeration is never done (except biennial-gap years)
+        return d
     except Exception:
         return None
 

@@ -32,6 +32,17 @@ Each year is swept in two layers:
 A hit is a **lead, not a disposition** — classification is a separate
 pass, and every classification is a draft until a human confirms it.
 
+**Thin-enumeration guard (patch v3).** A year whose enumeration returns
+fewer than 100 items is treated as a failed year (RERUN), not a clean
+one — an empty or throttled discovery query must never be recorded as
+"no session laws." The only exceptions are the biennial-session gap
+years `1940, 1942, 1944` (Amendment Art. LXXII made General Court
+sessions biennial; Art. LXXV annulled it, restoring annual sessions
+from 1945 — only special-session chapters exist for those even years).
+The guard is enforced in three places: `shard_sweep.py` fails the year
+during the sweep, refuses to skip a previously-recorded thin year, and
+`merge_verify.py` flags any thin non-exempt year as a problem.
+
 ## Kit contents
 
 | File | Role |
@@ -42,9 +53,11 @@ pass, and every classification is a draft until a human confirms it.
 | `merge_verify.py` | Global merge gate — the only instrument that can make the 1925–1996 claim |
 | `out/year_1925.json` … `out/year_1938.json` | Adopted baseline: fourteen clean years from the terminated serial run of 5–6 Aug 2026 |
 
-Python 3 standard library only. No pip installs. The scripts and
-detection patterns are **byte-identical** to the serial run launched
-5 August 2026 — see hard rule 1.
+Python 3 standard library only. No pip installs. The scripts carry
+patch v3 (thin-enumeration guard); the **detection patterns remain
+byte-identical** to the serial run launched 5 August 2026 — see hard
+rule 1. The guard changes when a year counts as clean, not what
+counts as a hit, so cross-checking against pre-v3 runs stays valid.
 
 ## Hard rules — these override speed
 
