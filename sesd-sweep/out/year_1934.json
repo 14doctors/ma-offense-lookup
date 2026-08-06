@@ -1,0 +1,46 @@
+{
+ "year": 1934,
+ "items": 436,
+ "no_text": [],
+ "fetch_fail": [],
+ "gaps": {},
+ "hits": [
+  {
+   "title": "1934 Chap. 0384. An Act In Addition To The General Appropriation Act Making Appropriations To Supplement Certain Items C",
+   "chap": 384,
+   "resolve": false,
+   "hits": {
+    "South Essex Sewerage Dis": 1,
+    "_amendish": true
+   }
+  },
+  {
+   "title": "1934 Resolve Chap. 0047. Resolve Providing For An Investigation Relative To The Protection Of Property Along The Waterfr",
+   "chap": 47,
+   "resolve": true,
+   "hits": {
+    "South Essex Sewerage Dis": 1,
+    "_amendish": true
+   }
+  },
+  {
+   "title": "1934 Resolve Chap. 0048. Resolve Authorizing The Boston Port Authority And The State Commissioner Of Public Works To Inv",
+   "chap": 48,
+   "resolve": true,
+   "hits": {
+    "South Essex Sewerage Dis": 1,
+    "_amendish": false
+   }
+  },
+  {
+   "title": "1934 Resolve Chap. 0049. Resolve Providing For An Investigation Relative To The Sewage Problem In The South Essex Sewera",
+   "chap": 49,
+   "resolve": true,
+   "hits": {
+    "South Essex Sewerage Dis": 1,
+    "_amendish": false
+   }
+  }
+ ],
+ "status": "OK"
+}

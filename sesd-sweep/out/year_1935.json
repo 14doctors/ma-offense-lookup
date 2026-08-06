@@ -1,0 +1,29 @@
+{
+ "year": 1935,
+ "items": 562,
+ "no_text": [],
+ "fetch_fail": [],
+ "gaps": {},
+ "hits": [
+  {
+   "title": "1935 Chap. 0384. An Act Regulating The Character Of Sewage, Drainage And Other Wastes To Be Discharged Into The Sewers O",
+   "chap": 384,
+   "resolve": false,
+   "hits": {
+    "South Essex Sewerage Dis": 1,
+    "_amendish": true
+   }
+  },
+  {
+   "title": "1935 Chap. 0457. An Act Providing For The Construction Of Additional Sewerage Works For The South Essex Sewerage Distric",
+   "chap": 457,
+   "resolve": false,
+   "hits": {
+    "South Essex Sewerage Dis": 2,
+    "South Essex sewerage boa": 1,
+    "_amendish": false
+   }
+  }
+ ],
+ "status": "OK"
+}

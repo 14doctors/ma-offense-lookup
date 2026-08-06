@@ -1,0 +1,19 @@
+{
+ "year": 1929,
+ "items": 442,
+ "no_text": [],
+ "fetch_fail": [],
+ "gaps": {},
+ "hits": [
+  {
+   "title": "1929 Chap. 0022. An Act Postponing The Time For Allocating And Apportioning The Cost Of Construction, Maintenance And Op",
+   "chap": 22,
+   "resolve": false,
+   "hits": {
+    "South Essex Sewerage Dis": 3,
+    "_amendish": true
+   }
+  }
+ ],
+ "status": "OK"
+}

@@ -1,0 +1,20 @@
+{
+ "year": 1925,
+ "items": 388,
+ "no_text": [],
+ "fetch_fail": [],
+ "gaps": {},
+ "hits": [
+  {
+   "title": "1925 Chap. 0339. An Act Establishing The South Essex Sewerage District For The Purpose Of Building, Maintaining And Oper",
+   "chap": 339,
+   "resolve": false,
+   "hits": {
+    "South Essex Sewerage Dis": 11,
+    "South Essex sewerage boa": 3,
+    "_amendish": true
+   }
+  }
+ ],
+ "status": "OK"
+}

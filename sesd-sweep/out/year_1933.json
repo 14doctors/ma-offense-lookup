@@ -1,0 +1,28 @@
+{
+ "year": 1933,
+ "items": 432,
+ "no_text": [],
+ "fetch_fail": [],
+ "gaps": {},
+ "hits": [
+  {
+   "title": "1933 Chap. 0226. An Act Relating To Sewer Assessments In The Town Of Danvers.",
+   "chap": 226,
+   "resolve": false,
+   "hits": {
+    "South Essex Sewerage Dis": 1,
+    "_amendish": true
+   }
+  },
+  {
+   "title": "1933 Chap. 0335. An Act Relative To The Inclusion Of Certain Items In Computing  Sewer  Assessments  In  The  Town Of Da",
+   "chap": 335,
+   "resolve": false,
+   "hits": {
+    "South Essex Sewerage Dis": 1,
+    "_amendish": true
+   }
+  }
+ ],
+ "status": "OK"
+}

@@ -1,0 +1,20 @@
+{
+ "year": 1928,
+ "items": 472,
+ "no_text": [],
+ "fetch_fail": [],
+ "gaps": {},
+ "hits": [
+  {
+   "title": "1928 Chap. 0294. An Act Relative To The South Essex Sewerage District.",
+   "chap": 294,
+   "resolve": false,
+   "hits": {
+    "South Essex Sewerage Dis": 3,
+    "South Essex sewerage boa": 2,
+    "_amendish": true
+   }
+  }
+ ],
+ "status": "OK"
+}

@@ -1,0 +1,19 @@
+{
+ "year": 1927,
+ "items": 392,
+ "no_text": [],
+ "fetch_fail": [],
+ "gaps": {},
+ "hits": [
+  {
+   "title": "1927 Chap. 0036. An Act Postponing The Time For Allocating And Apportioning The Cost Of Construction, Maintenance And Op",
+   "chap": 36,
+   "resolve": false,
+   "hits": {
+    "South Essex Sewerage Dis": 2,
+    "_amendish": true
+   }
+  }
+ ],
+ "status": "OK"
+}
